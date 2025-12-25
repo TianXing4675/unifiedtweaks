@@ -11,7 +11,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class BotManager {
@@ -36,67 +37,59 @@ public final class BotManager {
         return Map.copyOf(BOTS);
     }
 
-    private static UUID offlineUuid(String name) {
-        // 与离线模式 UUID 规则一致
-        return UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
-    }
+    public static ServerPlayer spawnBot(ServerPlayer owner, String name) {
+        var server = owner.level().getServer();
+        var level  = owner.level();
 
-    public static ServerPlayer spawnBot(MinecraftServer server, String name, ServerLevel level, BlockPos pos) {
-        String key = name.toLowerCase(Locale.ROOT);
+        var uuid = java.util.UUID.nameUUIDFromBytes(("UnifiedTweaks:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var profile = new com.mojang.authlib.GameProfile(uuid, name);
 
-        if (BOTS.containsKey(key)) {
-            throw new IllegalStateException("Bot already exists: " + name);
-        }
-        if (server.getPlayerList().getPlayerByName(name) != null) {
-            throw new IllegalStateException("A real player with the same name is online: " + name);
-        }
+        var info = net.minecraft.server.level.ClientInformation.createDefault();
+        var bot = new net.minecraft.server.level.ServerPlayer(server, level, profile, info);
 
-        UUID uuid = offlineUuid(name);
-        GameProfile profile = new GameProfile(uuid, name);
+        // placeNewPlayer 之前只做纯坐标赋值（不要 moveTo/teleportTo）
+        bot.setPos(owner.getX(), owner.getY(), owner.getZ());
+        bot.setYRot(owner.getYRot());
+        bot.setXRot(owner.getXRot());
+        bot.setYHeadRot(owner.getYHeadRot());
 
-        ClientInformation info = ClientInformation.createDefault();
-        ServerPlayer bot = new ServerPlayer(server, level, profile, info);
+        var conn = new com.darkdragon.unifiedtweaks.bot.FakeClientConnection();
 
-        // placeNewPlayer 之前只 setPos，不要 moveTo/teleportTo
-        bot.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        // 这里按你工程当前 CommonListenerCookie 的构造/工厂方法来：
+        // 方案A：如果有 createInitial/profile 工厂就优先用
+        // var cookie = net.minecraft.server.network.CommonListenerCookie.createInitial(profile, false);
 
-        FakeClientConnection conn = new FakeClientConnection();
+        // 方案B：用你截图那种 new CommonListenerCookie(profile, 0, info, false, ...)
+        var cookie = new net.minecraft.server.network.CommonListenerCookie(profile, 0, info, false);
 
-        CommonListenerCookie cookie = new CommonListenerCookie(profile, 0, info, false);
         server.getPlayerList().placeNewPlayer(conn, bot, cookie);
 
-        // ✅ 关键：写入集合（放在 placeNewPlayer 之后）
-        BOTS.put(key, bot);
+        // placeNewPlayer 之后你再 moveTo/teleportTo 都行（此时已有 connection）
+        // bot.moveTo(owner.getX(), owner.getY(), owner.getZ(), owner.getYRot(), owner.getXRot());
 
         return bot;
     }
 
-    public static boolean killBot(MinecraftServer server, String name, String reason) {
-        String key = name.toLowerCase(Locale.ROOT);
-        ServerPlayer bot = BOTS.remove(key);
-        if (bot == null) return false;
-        if (reason == null) reason = "No more be needed.";
+
+    public static void killBot(MinecraftServer server, String name, String reason) {
+        ServerPlayer bot = BOTS.remove(name);
+        if (bot == null) return;
+
+        // 先断开连接（即便是假连接，也让状态收敛）
         bot.connection.disconnect(Component.literal(reason));
 
-        // 你之前说 /kick 可以踢走，说明这行路径基本没问题
+        // 再从 PlayerList 移除（不同版本可能叫 remove/removeAll/removePlayer 等；这里以 remove 为主）
+        // 如果你这里编译报方法名不匹配，把 remove 改成 IDE 提示的对应方法即可。
         server.getPlayerList().remove(bot);
-        return true;
+
+        server.getPlayerList().broadcastSystemMessage(
+                Component.literal("[UnifiedTweaks] Bot left: " + name),
+                false
+        );
     }
 
-    public static List<String> listBotNames(MinecraftServer server) {
-        List<String> names = new ArrayList<>();
-
-        // 如果你想自清理残留
-        BOTS.entrySet().removeIf(e -> {
-            ServerPlayer p = e.getValue();
-            // 玩家如果已经不在 PlayerList 里，说明被踢走/断线了
-            return server.getPlayerList().getPlayer(p.getUUID()) == null;
-        });
-
-        for (ServerPlayer p : BOTS.values()) {
-            names.add(String.valueOf(p.getName()));
-        }
-        return names;
+    private static UUID offlineUuid(String name) {
+        // 与离线模式 UUID 规则一致
+        return UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
     }
-
 }

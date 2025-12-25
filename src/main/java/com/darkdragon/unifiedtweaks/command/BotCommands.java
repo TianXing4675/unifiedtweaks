@@ -61,7 +61,7 @@ public final class BotCommands {
 //        BlockPos pos = player.blockPosition();
 
         try {
-            BotManager.spawnBot(src.getPlayer().level().getServer(), name,src.getLevel(),src.getPlayer().getOnPos());
+            BotManager.spawnBot(src.getPlayer(), name);
         } catch (Exception ex) {
             src.sendFailure(Component.literal("无法生成bot: " + ex.getMessage()));
             return 0;
