@@ -1,14 +1,21 @@
 {
-	"required": true,
-	"package": "com.darkdragon.unifiedtweaks.mixin",
-	"compatibilityLevel": "JAVA_21",
-	"mixins": [
-		"ExampleMixin"
-	],
-	"injectors": {
-		"defaultRequire": 1
-	},
-	"overwrites": {
-		"requireAnnotations": true
+  "required": true,
+  "package": "com.darkdragon.unifiedtweaks.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ExampleMixin",
+    "ServerGamePacketListenerImplRebindMixin",
+    "UT_ServerPlayerConnAccessor",
+    "UT_SGPLPlayerAccessor",
+    "accessor.ConnAccess",
+    "accessor.ServerCommonAccess",
+    "accessor.ServerPlayerConnectionAccessor",
+    "accessor.SGPLExt"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
 	}
 }

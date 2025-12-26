@@ -1,16 +1,11 @@
 package com.darkdragon.unifiedtweaks.bot;
 
-import com.mojang.authlib.GameProfile;
-import net.minecraft.core.BlockPos;
-import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ClientInformation;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.CommonListenerCookie;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +32,20 @@ public final class BotManager {
         return Map.copyOf(BOTS);
     }
 
+    public static ServerPlayer getBotByUuid(UUID uuid) {
+        for (ServerPlayer p : BOTS.values()) { // BOTS 是你保存 bot 的 Map<String, ServerPlayer>
+            if (p != null && p.getUUID().equals(uuid)) return p;
+        }
+        return null;
+    }
+
+    public static ServerPlayer getBotByName(String name) {
+        return BOTS.get(name.toLowerCase(java.util.Locale.ROOT));
+    }
+
+
     public static ServerPlayer spawnBot(ServerPlayer owner, String name) {
+        String key = name.toLowerCase(Locale.ROOT);
         var server = owner.level().getServer();
         var level  = owner.level();
 
@@ -63,10 +71,7 @@ public final class BotManager {
         var cookie = new net.minecraft.server.network.CommonListenerCookie(profile, 0, info, false);
 
         server.getPlayerList().placeNewPlayer(conn, bot, cookie);
-
-        // placeNewPlayer 之后你再 moveTo/teleportTo 都行（此时已有 connection）
-        // bot.moveTo(owner.getX(), owner.getY(), owner.getZ(), owner.getYRot(), owner.getXRot());
-
+        BOTS.put(key, bot);
         return bot;
     }
 

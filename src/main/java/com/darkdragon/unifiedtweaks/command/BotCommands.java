@@ -1,12 +1,11 @@
 package com.darkdragon.unifiedtweaks.command;
 
+import com.darkdragon.unifiedtweaks.bind.HardBindManager;
 import com.darkdragon.unifiedtweaks.bot.BotManager;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
 
@@ -44,6 +43,30 @@ public final class BotCommands {
                                         return bots.size();
                                     })
                             )
+                            .then(Commands.literal("hardbind")
+                                    .then(Commands.argument("name", StringArgumentType.word())
+                                            .executes(ctx -> {
+                                                var controller = ctx.getSource().getPlayerOrException();
+                                                var bot = BotManager.getBotByName(StringArgumentType.getString(ctx, "name"));
+                                                if (bot == null) {
+                                                    ctx.getSource().sendFailure(Component.literal("Bot not found."));
+                                                    return 0;
+                                                }
+                                                HardBindManager.hardBind(controller, bot);
+                                                ctx.getSource().sendSuccess(() -> Component.literal("Hard-bound to bot."), false);
+                                                return 1;
+                                            })
+                                    )
+                            )
+                            .then(Commands.literal("hardunbind")
+                                    .executes(ctx -> {
+                                        var controller = ctx.getSource().getPlayerOrException();
+                                        HardBindManager.hardUnbind(controller);
+                                        ctx.getSource().sendSuccess(() -> Component.literal("Hard-unbound."), false);
+                                        return 1;
+                                    })
+                            )
+
             );
         });
     }

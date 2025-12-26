@@ -28,6 +28,10 @@ public class UnifiedTweaks implements ModInitializer {
         BotCommands.register();
 
         // 驱动 bot 的 tick（后续你要做“右键连点/攻击/走路”等，都挂这里）
-        ServerTickEvents.END_SERVER_TICK.register(server -> BotManager.tick(server));
-	}
+//        ServerTickEvents.END_SERVER_TICK.register(server -> BotManager.tick(server));
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            com.darkdragon.unifiedtweaks.bind.NetBindManager.tick(server);
+        });
+
+    }
 }
