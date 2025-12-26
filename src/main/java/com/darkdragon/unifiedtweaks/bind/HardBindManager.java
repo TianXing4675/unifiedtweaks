@@ -3,26 +3,23 @@ package com.darkdragon.unifiedtweaks.bind;
 import com.darkdragon.unifiedtweaks.UnifiedTweaks;
 import com.darkdragon.unifiedtweaks.api.UTRebindableListener;
 import com.darkdragon.unifiedtweaks.bot.BotManager;
-import com.darkdragon.unifiedtweaks.mixin.RebindAccessors;
-import com.darkdragon.unifiedtweaks.mixin.ServerGamePacketListenerImplRebindMixin;
+import com.darkdragon.unifiedtweaks.debug.UTTrace;
 import com.darkdragon.unifiedtweaks.mixin.accessor.ConnAccess;
 import com.darkdragon.unifiedtweaks.mixin.accessor.ServerCommonAccess;
-import net.fabricmc.fabric.api.resource.v1.reloader.ResourceReloaderKeys;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.*;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
-import net.minecraft.world.level.block.entity.vault.VaultBlockEntity;
-import org.apache.logging.log4j.core.jmx.Server;
+import com.darkdragon.unifiedtweaks.mixin.accessor.ServerGamePacketListenerImplAccessor;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 
 public final class HardBindManager {
     private HardBindManager() {}
@@ -98,7 +95,12 @@ public final class HardBindManager {
             ((UTRebindableListener) playerListener).ut$rebindTo(bot);
         }
 
+        hardResetListenerForRebind(playerListener,bot);
         ResyncUtil.forceResync(bot);
+        UTTrace.begin(player.level().getServer(), bot, 200);
+        UnifiedTweaks.LOGGER.info("[TRACE] begin for bot={} uuid={}", bot.getName(), bot.getUUID());
+
+
 //        botListener.player = player;
 //        player.connection = botListener;
 
@@ -116,23 +118,53 @@ public final class HardBindManager {
         // 重要：这不是“全部问题都解决”的点，但为了让输入不被门控丢掉，你通常还需要让 bot 进入 loaded 状态
         // 你如果暂时只想验证“listener 是否真的切换成功”，可以先不动它；否则建议立即放开：
         //直接设置true会导致客户端和服务器不同步的问题，需要服务器向客户端发包让客户端重新载入数据才行
-//        bot.setClientLoaded(true);
+        bot.setClientLoaded(true);
+    }
+
+    private static void hardResetListenerForRebind(ServerGamePacketListenerImpl listener, ServerPlayer bot) {
+        ServerGamePacketListenerImplAccessor acc = (ServerGamePacketListenerImplAccessor) (Object) listener;
+
+        // 1) 先让 updateAwaitingTeleport() 一定返回 true，短路掉随后的 move 校验
+        //    这样切换瞬间到来的旧 move 包不会进入 moved-too-quickly 分支
+        acc.ut$setAwaitingPositionFromClient(bot.position());
+        acc.ut$setAwaitingTeleportTime(acc.ut$getTickCount());
+
+        // 2) 清掉反作弊残留（漂浮/载具漂浮）
+        acc.ut$setClientIsFloating(false);
+        acc.ut$setAboveGroundTickCount(0);
+        acc.ut$setClientVehicleIsFloating(false);
+        acc.ut$setAboveGroundVehicleTickCount(0);
+
+        // 3) 对齐移动包计数，避免“move packets too frequently”之类的残留副作用
+        acc.ut$setKnownMovePacketCount(acc.ut$getReceivedMovePacketCount());
+        acc.ut$setReceivedMovementThisTick(false);
+
+        // 4) 发起一次“正规的 teleport 握手”
+        //    teleport() 会设置 awaitingPositionFromClient 并发送 ClientboundPlayerPositionPacket
+        listener.teleport(bot.getX(), bot.getY(), bot.getZ(), bot.getYRot(), bot.getXRot());
+
+        // 5) 重新设定 good position 基线（可选，但建议）
+        listener.resetPosition();
+
+        // 6) 容器状态统一（建议你每次 bind 都做）
+        bot.closeContainer();
+        bot.containerMenu.broadcastFullState();
     }
 
     public static void hardUnbind(ServerPlayer actor) {
         //传入的actor似乎是命令的执行者，就是不知道是bot还是真玩家
         UUID controllerId = resolveController(actor.getUUID());
         UnifiedTweaks.LOGGER.info("命令执行者的UUID是:"+ controllerId);
-        if (controllerId == null) throw new IllegalStateException("Not hard-bound.");
+        if (controllerId == null) throw new IllegalStateException("尚未接管机器人");
 
         Session s = SESSIONS.remove(controllerId);
-        if (s == null) throw new IllegalStateException("Not hard-bound.");
+        if (s == null) throw new IllegalStateException("尚未接管机器人");
 
         ServerPlayer controller = actor.level().getServer().getPlayerList().getPlayer(controllerId);
         ServerPlayer bot = BotManager.getBotByUuid(s.botUuid);
 
         if (controller == null) {
-            throw new IllegalStateException("controller 不在线，无法解绑");
+            throw new IllegalStateException("创建者不在线，无法解绑");
         }
 
         // 1) 恢复 controller 的真实 play listener 到底层 Connection

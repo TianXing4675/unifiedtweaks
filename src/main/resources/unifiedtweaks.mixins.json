@@ -9,8 +9,10 @@
     "UT_SGPLPlayerAccessor",
     "accessor.ConnAccess",
     "accessor.ServerCommonAccess",
+    "accessor.ServerGamePacketListenerImplAccessor",
     "accessor.ServerPlayerConnectionAccessor",
-    "accessor.SGPLExt"
+    "accessor.SGPLExt",
+    "trace.ServerGamePacketListenerImplTraceMixin"
   ],
   "injectors": {
     "defaultRequire": 1
