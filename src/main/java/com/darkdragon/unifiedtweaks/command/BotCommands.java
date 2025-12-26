@@ -16,7 +16,7 @@ public final class BotCommands {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             dispatcher.register(
                     Commands.literal("utbot")
-                            .requires(src -> src.hasPermission(2)) // OP 级别，后面你可以做更细的权限控制
+                            .requires(src -> src.hasPermission(0)) // OP 级别，后面你可以做更细的权限控制
                             .then(Commands.literal("spawn")
                                     .then(Commands.argument("name", StringArgumentType.word())
                                             .executes(ctx -> spawnAtInvoker(ctx.getSource(), StringArgumentType.getString(ctx, "name")))

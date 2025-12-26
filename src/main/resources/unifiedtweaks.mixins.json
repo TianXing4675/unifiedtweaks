@@ -10,7 +10,8 @@
     "accessor.ConnAccess",
     "accessor.ServerCommonAccess",
     "accessor.ServerPlayerConnectionAccessor",
-    "accessor.SGPLExt"
+    "accessor.SGPLExt",
+    "trace.ServerGamePacketListenerImplTraceMixin"
   ],
   "injectors": {
     "defaultRequire": 1

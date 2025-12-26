@@ -3,26 +3,20 @@ package com.darkdragon.unifiedtweaks.bind;
 import com.darkdragon.unifiedtweaks.UnifiedTweaks;
 import com.darkdragon.unifiedtweaks.api.UTRebindableListener;
 import com.darkdragon.unifiedtweaks.bot.BotManager;
-import com.darkdragon.unifiedtweaks.mixin.RebindAccessors;
-import com.darkdragon.unifiedtweaks.mixin.ServerGamePacketListenerImplRebindMixin;
+import com.darkdragon.unifiedtweaks.debug.UTTrace;
 import com.darkdragon.unifiedtweaks.mixin.accessor.ConnAccess;
 import com.darkdragon.unifiedtweaks.mixin.accessor.ServerCommonAccess;
-import net.fabricmc.fabric.api.resource.v1.reloader.ResourceReloaderKeys;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.*;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
-import net.minecraft.world.level.block.entity.vault.VaultBlockEntity;
-import org.apache.logging.log4j.core.jmx.Server;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 
 public final class HardBindManager {
     private HardBindManager() {}
@@ -99,6 +93,10 @@ public final class HardBindManager {
         }
 
         ResyncUtil.forceResync(bot);
+
+        UTTrace.begin(player.level().getServer(), bot, 200);
+        UnifiedTweaks.LOGGER.info("[TRACE] begin for bot={} uuid={}", bot.getName(), bot.getUUID());
+
 //        botListener.player = player;
 //        player.connection = botListener;
 
@@ -116,7 +114,7 @@ public final class HardBindManager {
         // 重要：这不是“全部问题都解决”的点，但为了让输入不被门控丢掉，你通常还需要让 bot 进入 loaded 状态
         // 你如果暂时只想验证“listener 是否真的切换成功”，可以先不动它；否则建议立即放开：
         //直接设置true会导致客户端和服务器不同步的问题，需要服务器向客户端发包让客户端重新载入数据才行
-//        bot.setClientLoaded(true);
+        bot.setClientLoaded(true);
     }
 
     public static void hardUnbind(ServerPlayer actor) {
