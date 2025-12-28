@@ -5,6 +5,7 @@
   "mixins": [
     "ExampleMixin",
     "ServerGamePacketListenerImplRebindMixin",
+    "SGPLConfigTraceMixin",
     "UT_ServerPlayerConnAccessor",
     "UT_SGPLPlayerAccessor",
     "accessor.ConnAccess",

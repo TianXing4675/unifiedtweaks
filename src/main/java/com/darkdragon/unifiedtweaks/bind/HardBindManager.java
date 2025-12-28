@@ -11,11 +11,8 @@ import net.minecraft.network.protocol.game.*;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import com.darkdragon.unifiedtweaks.mixin.accessor.ServerGamePacketListenerImplAccessor;
-import net.minecraft.server.network.ServerGamePacketListenerImpl;
-import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Map;
 import java.util.UUID;
@@ -72,21 +69,9 @@ public final class HardBindManager {
         // 5) 用 controller 这条连接的网络状态 + 客户端信息，为 bot 构造一个新的 play listener
         int latency = common.unifiedtweaks$getLatency();
         boolean transferred = common.unifiedtweaks$isTransferred();
-        CommonListenerCookie cookie = new CommonListenerCookie(bot.getGameProfile(), latency, clientInfo, transferred);
 
-        // 关键：重新构造 ServerGamePacketListenerImpl
-        // 构造函数内部会做：this.player = bot；bot.connection = this；
-//        ServerGamePacketListenerImpl botNewPlayListener =
-//                new ServerGamePacketListenerImpl(player.level().getServer(), playerConn, bot, cookie);
-//
-//        // 6) 把底层 Connection 的 packetListener 指向新的 play listener（这才叫“接到正确的 Connection 上”）
-//        ConnAccess connAcc = (ConnAccess) playerConn;
-//        connAcc.unifiedtweaks$setPacketListener(botNewPlayListener);
-//        connAcc.unifiedtweaks$setDisconnectListener(null);
+        //交换Listener的同时让player的connection指向新的Listener
 
-        // 7) 把 controller 的 connection 换成 bot 的 fake listener，让 controller 变成“服务器托管身体”
-        // 这样服务器逻辑里若误用 controller.connection.send(...)，也不会再往真实客户端乱发包
-//        RebindAccessors.rebind(botListener,player);
         if (botListener instanceof UTRebindableListener) {
             ((UTRebindableListener) botListener).ut$rebindTo(player);
         }
@@ -97,12 +82,9 @@ public final class HardBindManager {
 
         hardResetListenerForRebind(playerListener,bot);
         ResyncUtil.forceResync(bot);
-        UTTrace.begin(player.level().getServer(), bot, 200);
-        UnifiedTweaks.LOGGER.info("[TRACE] begin for bot={} uuid={}", bot.getName(), bot.getUUID());
 
-
-//        botListener.player = player;
-//        player.connection = botListener;
+//        UTTrace.begin(player.level().getServer(), bot, 200);
+//        UnifiedTweaks.LOGGER.info("[TRACE] begin for bot={} uuid={}", bot.getName(), bot.getUUID());
 
         // 8) 记录会话，用于回滚
         SESSIONS.put(player.getUUID(), new Session(
@@ -122,7 +104,7 @@ public final class HardBindManager {
     }
 
     private static void hardResetListenerForRebind(ServerGamePacketListenerImpl listener, ServerPlayer bot) {
-        ServerGamePacketListenerImplAccessor acc = (ServerGamePacketListenerImplAccessor) (Object) listener;
+        ServerGamePacketListenerImplAccessor acc = (ServerGamePacketListenerImplAccessor) listener;
 
         // 1) 先让 updateAwaitingTeleport() 一定返回 true，短路掉随后的 move 校验
         //    这样切换瞬间到来的旧 move 包不会进入 moved-too-quickly 分支
@@ -196,15 +178,8 @@ final class ResyncUtil {
         // 0) 先关容器，避免 containerId/stateId 不一致
         p.closeContainer();
 
-        // 1) 发“重生/重建世界信息”的关键包（客户端会重置不少本地状态）
-        // 注意：不同版本构造器参数可能略有差异，以你 Mojmap 的签名为准。
-        p.connection.send(new ClientboundRespawnPacket(
-                p.createCommonSpawnInfo(level),
-                (byte) 0 // keep same portal cooldown / flags; 0 通常够用
-        ));
-
         // 2) 位置同步（等价于“你现在就在这里”）
-//        p.connection.teleport(p.getX(), p.getY(), p.getZ(), p.getYRot(), p.getXRot());
+        p.connection.teleport(p.getX(), p.getY(), p.getZ(), p.getYRot(), p.getXRot());
 
         // 3) 基础状态同步
         var levelData = level.getLevelData();
@@ -212,13 +187,14 @@ final class ResyncUtil {
         p.connection.send(new ClientboundPlayerAbilitiesPacket(p.getAbilities()));
         p.connection.send(new ClientboundSetHeldSlotPacket(p.getInventory().getSelectedSlot()));
         p.connection.send(new ClientboundSetExperiencePacket(p.experienceProgress, p.totalExperience, p.experienceLevel));
-
-        // 4) 效果/权限/世界信息
+//
+//        // 4) 效果/权限/世界信息
         server.getPlayerList().sendActivePlayerEffects(p);
         server.getPlayerList().sendPlayerPermissionLevel(p);
         server.getPlayerList().sendLevelInfo(p, level);
-
-        // 5) 背包/容器完整状态刷新（关键）
+//
+//        // 5) 背包/容器完整状态刷新（关键）
         p.containerMenu.broadcastFullState();
+        server.getPlayerList().sendAllPlayerInfo(p);
     }
 }
